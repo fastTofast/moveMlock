@@ -188,6 +188,8 @@ fn release_cell_selected(
 ) {
     for (mut transform, entity, cell) in query.iter_mut() {
         let win = windows.get_primary().unwrap();
+        let win_w_half = win.requested_width() / 2.0;
+        let win_h_half = win.requested_height() / 2.0;
         if buttons.just_released(MouseButton::Left) {
             println!("release_cell_selected just_released:");
             if mousestatus.pressed {
@@ -201,8 +203,12 @@ fn release_cell_selected(
         }
         for ev in cursor_evr.iter() {
             if mousestatus.pressed {
-                transform.translation.x = ev.position.x - win.requested_width() / 2.0;
-                transform.translation.y = ev.position.y - win.requested_height() / 2.0;
+                transform.translation.x = ev.position.x
+                    - win_w_half
+                    - (mousestatus.x - win_w_half - selected_cell.oldPos.x);
+                transform.translation.y = ev.position.y
+                    - win_h_half
+                    - (mousestatus.y - win_h_half - selected_cell.oldPos.y);
                 // println!(
                 //     "ev.position== x: {} y: {}  |||| translation: {} {}",
                 //     ev.position.x, ev.position.y, transform.translation.x, transform.translation.y
