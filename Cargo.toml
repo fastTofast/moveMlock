@@ -1,0 +1,28 @@
+[package]
+name = "move_block_game"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# bevy = "0.6.1"
+random-number = "0.1.6"
+bevy-inspector-egui = "0.8.2"
+
+[dependencies.bevy]
+version = "0.6"
+# Disable the default features if there are any that you do not want
+default-features = false
+features = [
+  # These are the default features:
+  # (keep whichever you like)
+  "render",
+  "bevy_winit",
+  "png",
+  "hdr",
+  "x11",
+  "filesystem_watcher",
+]
+[profile.release]
+opt-level = 's'
