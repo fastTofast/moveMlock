@@ -23,10 +23,10 @@
 
 <body>
     <script type="module">
-        import init from "wasm.js";
+        import init from "./wasm.js";
 
         async function run() {
-            await init("wasm.wasm");
+            await init("./wasm.wasm");
         }
 
         const reloadInterval = 1000;
