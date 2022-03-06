@@ -1,4 +1,7 @@
+// use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy::prelude::*;
+// use bevy_inspector_egui::{Inspectable, InspectorPlugin, WorldInspectorPlugin};
+
 extern crate random_number;
 
 #[derive(Component)]
@@ -7,7 +10,6 @@ struct Person;
 #[derive(Component)]
 struct Name(String);
 
-
 #[derive(Component)]
 struct Cell {
     w: f32,
@@ -15,6 +17,7 @@ struct Cell {
 }
 
 fn add_person(mut commands: Commands) {
+    commands.spawn_bundle(OrthographicCameraBundle::new_2d());
     let h = 35.0;
     let w = 60.0;
     fn get_color(n: u8) -> Color {
@@ -31,16 +34,14 @@ fn add_person(mut commands: Commands) {
             Color::rgb(0.5, 0.5, 0.3)
         }
     }
-    let r: u32 = 5;
-    let c: u32 = 5;
-    for i in 0..r {
-        for j in 0..c {
-            let x = if i < 6 {
+    for i in 0..10 {
+        for j in 0..10 {
+            let x = if i < 5 {
                 i as f32 * (w + 5.0)
             } else {
                 (i - 10) as f32 * (w + 5.0)
             };
-            let y = if j < 6 {
+            let y = if j < 5 {
                 j as f32 * (h + 5.0)
             } else {
                 (j - 10) as f32 * (h + 5.0)
@@ -66,6 +67,7 @@ fn add_person(mut commands: Commands) {
         }
     }
 }
+// #[derive(Inspectable, Default)]
 struct MouseStatus {
     x: f32,
     y: f32,
@@ -75,6 +77,7 @@ struct MouseStatus {
 struct PositionTimer(Timer);
 #[derive(Component)]
 struct SelectedCellCom(Entity);
+// #[derive(Inspectable, Default)]
 struct SelectedCell {
     oldPos: Vec3,
     newPos: Vec3,
@@ -86,8 +89,7 @@ fn timer_fn(
     windows: Res<Windows>,
     mut selected_cell: ResMut<SelectedCell>,
     mut mousestatus: ResMut<MouseStatus>,
-    mut cursor_evr: EventReader<CursorMoved>,
-    query: Query<(&Cell, &mut Transform, Entity)>,
+    mut query: Query<(&Cell, &mut Transform, Entity)>,
 ) {
     let mut translation = Vec3::new(0.0, 0.0, 0.0);
     let win = windows.get_primary().unwrap();
@@ -103,15 +105,22 @@ fn timer_fn(
         mousestatus.pressed = true;
         mousestatus.released = false;
         println!("mousestatus: x: {}  y: {}", mousestatus.x, mousestatus.y);
-        for (cell, transform, entity) in query.iter() {
-            let mut translation = transform.translation;
-            // println!("inx--iny: {} y: {}", translation.x, translation.y);
+        for (cell, mut transform, entity) in query.iter_mut() {
+            translation = transform.translation;
             if is_in(translation, &mousestatus, &cell, win) {
+                println!(
+                    "++++++++++++++++++++++++just_pressed+++++++++++++++++++++++++ x: {} y: {}",
+                    translation.x, translation.y
+                );
                 selected_cell.oldPos.x = translation.x;
                 selected_cell.oldPos.y = translation.y;
+                selected_cell.newPos.x = translation.x;
+                selected_cell.newPos.y = translation.y;
+                transform.scale = Vec3::new(cell.w - 5.0, cell.h - 5.0, 0.0);
                 commands.entity(entity).insert(SelectedCellCom(entity));
                 translation.x = mousestatus.x;
                 translation.y = mousestatus.y;
+                break;
             } else {
                 translation = Vec3::new(0.0, 0.0, 0.0);
             }
@@ -121,49 +130,49 @@ fn timer_fn(
         // Right Button is being held down
         println!("pressed:");
     };
-    for ev in cursor_evr.iter() {
-        if mousestatus.pressed {
-            translation.x = ev.position.x - win.requested_width() / 2.0;
-            translation.y = ev.position.y - win.requested_height() / 2.0;
-        };
-        // println!("ev.position== x: {} y: {}", ev.position.x, ev.position.y)
-    }
 }
 fn is_in(translation: Vec3, mousestatus: &MouseStatus, cell: &Cell, win: &Window) -> bool {
     let w_x = win.requested_width() / 2.0;
     let w_y = win.requested_height() / 2.0;
     let abs_x = translation.x + w_x;
     let abs_y = translation.y + w_y;
-    let inx = abs_x <= mousestatus.x && mousestatus.x <= abs_x + cell.w;
-    let iny = abs_y <= mousestatus.y && mousestatus.y <= abs_y + cell.h;
-    println!("translation  x{} y: {}", translation.x, translation.y);
-    println!("mousestatus  x{} y: {}", mousestatus.x, mousestatus.y);
-    println!("abs_x {} abs_y: {}", abs_x, abs_y);
-    println!("inx {} iny: {}", inx, iny);
-    println!("--------------------------------------");
+    // 精灵图的坐标系原点是窗口居中的，transform的（0，0）为精灵图居中点
+    let inx = abs_x - cell.w / 2.0 <= mousestatus.x && mousestatus.x <= abs_x + cell.w / 2.0;
+    let iny = abs_y - cell.h / 2.0 <= mousestatus.y && mousestatus.y <= abs_y + cell.h / 2.0;
+    // println!(
+    //     "translation  x: {} y: {}  ---  mousestatus  x: {} y: {}  ---  abs_x {} abs_y: {}  ---  inx {} iny: {}",
+    //     translation.x, translation.y, mousestatus.x, mousestatus.y, abs_x, abs_y, inx, iny
+    // );
     inx && iny
 }
 
 fn release_cell(
     buttons: Res<Input<MouseButton>>,
     windows: Res<Windows>,
-    mousestatus: ResMut<MouseStatus>,
+    mut mousestatus: ResMut<MouseStatus>,
     mut selected_cell: ResMut<SelectedCell>,
-    query: Query<(&Cell, &mut Transform), Without<SelectedCellCom>>,
+    mut query: Query<(&Cell, &mut Transform), Without<SelectedCellCom>>,
 ) {
     if buttons.just_released(MouseButton::Left) {
         // Left Button was released
-        println!("release_cell just_released:");
+        println!("release_cell just_released");
         let win = windows.get_primary().unwrap();
-        for (cell, transform) in query.iter() {
-            let mut translation = transform.translation;
-            // println!("inx--iny: {} y: {}", translation.x, translation.y);
+        if let Some(pos) = win.cursor_position() {
+            mousestatus.x = pos.x;
+            mousestatus.y = pos.y;
+        }
+        println!("mousestatus: x: {}  y: {}", mousestatus.x, mousestatus.y);
+        for (cell, mut transform) in query.iter_mut() {
+            let translation = transform.translation;
             if is_in(translation, &mousestatus, &cell, win) {
-                translation.x = selected_cell.oldPos.x;
-                translation.y = selected_cell.oldPos.y;
-                selected_cell.newPos = Vec3::new(translation.x, translation.y, translation.z)
-            } else {
-                translation = Vec3::new(0.0, 0.0, 0.0);
+                println!(
+                    "+++++++++++++++++++release_cell+++++++++++++++++++ x: {} y: {}",
+                    translation.x, translation.y
+                );
+                selected_cell.newPos = Vec3::new(translation.x, translation.y, translation.z);
+                transform.translation.x = selected_cell.oldPos.x;
+                transform.translation.y = selected_cell.oldPos.y;
+                break;
             }
         }
     };
@@ -172,18 +181,33 @@ fn release_cell_selected(
     mut commands: Commands,
     buttons: Res<Input<MouseButton>>,
     selected_cell: Res<SelectedCell>,
+    windows: Res<Windows>,
     mut mousestatus: ResMut<MouseStatus>,
-    mut query: Query<(&mut Transform, Entity), With<SelectedCellCom>>,
+    mut cursor_evr: EventReader<CursorMoved>,
+    mut query: Query<(&mut Transform, Entity, &Cell), With<SelectedCellCom>>,
 ) {
-    if buttons.just_released(MouseButton::Left) {
-        println!("release_cell_selected just_released:");
-        mousestatus.pressed = false;
-        mousestatus.released = true;
-        if mousestatus.pressed {
-            let (mut transform, entity) = query.single_mut();
-            transform.translation.x = selected_cell.newPos.x;
-            transform.translation.y = selected_cell.newPos.y;
-            commands.entity(entity).remove::<SelectedCellCom>();
+    for (mut transform, entity, cell) in query.iter_mut() {
+        let win = windows.get_primary().unwrap();
+        if buttons.just_released(MouseButton::Left) {
+            println!("release_cell_selected just_released:");
+            if mousestatus.pressed {
+                transform.translation.x = selected_cell.newPos.x;
+                transform.translation.y = selected_cell.newPos.y;
+                transform.scale = Vec3::new(cell.w, cell.h, 0.0);
+                commands.entity(entity).remove::<SelectedCellCom>();
+            }
+            mousestatus.pressed = false;
+            mousestatus.released = true;
+        }
+        for ev in cursor_evr.iter() {
+            if mousestatus.pressed {
+                transform.translation.x = ev.position.x - win.requested_width() / 2.0;
+                transform.translation.y = ev.position.y - win.requested_height() / 2.0;
+                // println!(
+                //     "ev.position== x: {} y: {}  |||| translation: {} {}",
+                //     ev.position.x, ev.position.y, transform.translation.x, transform.translation.y
+                // )
+            };
         }
     }
 }
@@ -196,6 +220,11 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugin(HelloPlugin)
+        // .add_plugin(WorldInspectorPlugin::new())
+        // .add_plugin(InspectorPlugin::<SelectedCell>::new())
+        // .add_plugin(InspectorPlugin::<MouseStatus>::new())
+        // .add_plugin(LogDiagnosticsPlugin::default())
+        // .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .run();
 }
 pub struct HelloPlugin;
