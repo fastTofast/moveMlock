@@ -1,7 +1,7 @@
 // use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy::prelude::*;
 // use bevy_inspector_egui::{Inspectable, InspectorPlugin, WorldInspectorPlugin};
-
+use bevy::core::FixedTimestep;
 extern crate random_number;
 
 #[derive(Component)]
@@ -16,7 +16,23 @@ struct Cell {
     h: f32,
 }
 
-fn add_person(mut commands: Commands) {
+struct ComDataList {
+    data: Vec<(f32, f32)>,
+    index: usize,
+}
+impl ComDataList {
+    fn next(&mut self) -> Option<(f32, f32)> {
+        let cur = self.index;
+        self.index = self.index + 1;
+        if self.index > self.data.len() {
+            None
+        } else {
+            Some(self.data[cur])
+        }
+    }
+}
+
+fn add_person(mut commands: Commands, mut comDataList: ResMut<ComDataList>) {
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
     let h = 35.0;
     let w = 60.0;
@@ -34,6 +50,7 @@ fn add_person(mut commands: Commands) {
             Color::rgb(0.5, 0.5, 0.3)
         }
     }
+    let mut list = vec![];
     for i in 0..10 {
         for j in 0..10 {
             let x = if i < 5 {
@@ -50,22 +67,48 @@ fn add_person(mut commands: Commands) {
             // random_number::random_fill_ranged(&mut color, 1..10);
             let r: u8 = random_number::random_ranged(0..5);
             println!("x: {x}, y: {y}, r: {r}");
-            commands
-                .spawn_bundle(SpriteBundle {
-                    sprite: Sprite {
-                        color: get_color(r),
-                        ..Default::default()
-                    },
-                    transform: Transform {
-                        translation: Vec3::new(x, y, 0.0),
-                        scale: Vec3::new(w, h, 0.0),
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                })
-                .insert(Cell { w, h });
+            list.push((x, y));
+            // comDataList.data.push((x, y));
+            // commands
+            //     .spawn_bundle(SpriteBundle {
+            //         sprite: Sprite {
+            //             color: get_color(r),
+            //             ..Default::default()
+            //         },
+            //         transform: Transform {
+            //             translation: Vec3::new(x, y, 0.0),
+            //             scale: Vec3::new(w, h, 0.0),
+            //             ..Default::default()
+            //         },
+            //         ..Default::default()
+            //     })
+            //     .insert(Cell { w, h });
         }
     }
+    quick_sort(&mut list);
+    comDataList.data = list;
+}
+fn quick_sort(nums: &mut Vec<(f32, f32)>) {
+    fn _partition(nums: &mut Vec<(f32, f32)>, begin: usize, end: usize) -> usize {
+        let (mut i, v) = (begin, nums[end - 1].0);
+        for j in begin..end - 1 {
+            if nums[j].0 <= v {
+                nums.swap(i, j);
+                i += 1;
+            }
+        }
+        nums.swap(i, end - 1);
+        i
+    }
+    fn _quick_sort(nums: &mut Vec<(f32, f32)>, begin: usize, end: usize) {
+        if begin + 1 < end {
+            let mid = _partition(nums, begin, end);
+            _quick_sort(nums, begin, mid);
+            _quick_sort(nums, mid + 1, end);
+        }
+    }
+
+    _quick_sort(nums, 0, nums.len())
 }
 // #[derive(Inspectable, Default)]
 struct MouseStatus {
@@ -217,10 +260,40 @@ fn release_cell_selected(
         }
     }
 }
-fn timer_print(mut timer: ResMut<PositionTimer>, time: Res<Time>) {
-    if timer.0.tick(time.delta()).just_finished() {
-        println!("timer_print");
-    };
+fn timer_print(mut commands: Commands, mut com_data_list: ResMut<ComDataList>) {
+    let h = 35.0;
+    let w = 60.0;
+    fn get_color(n: u8) -> Color {
+        let color_list = [
+            Color::rgb(0.6, 0.9, 0.6),
+            Color::rgb(0.1, 0.9, 0.8),
+            Color::rgb(0.9, 0.9, 0.1),
+            Color::rgb(0.7, 0.4, 0.9),
+            Color::rgb(0.9, 0.7, 0.7),
+        ];
+        if 0 < n && n <= 4 {
+            color_list[n as usize]
+        } else {
+            Color::rgb(0.5, 0.5, 0.3)
+        }
+    }
+    if let Some((x, y)) = com_data_list.next() {
+        let r: u8 = random_number::random_ranged(0..5);
+        commands
+            .spawn_bundle(SpriteBundle {
+                sprite: Sprite {
+                    color: get_color(r),
+                    ..Default::default()
+                },
+                transform: Transform {
+                    translation: Vec3::new(x, y, 0.0),
+                    scale: Vec3::new(w, h, 0.0),
+                    ..Default::default()
+                },
+                ..Default::default()
+            })
+            .insert(Cell { w, h });
+    }
 }
 fn main() {
     App::new()
@@ -247,9 +320,19 @@ impl Plugin for HelloPlugin {
                 pressed: false,
                 released: false,
             })
+            .insert_resource(ComDataList {
+                data: vec![],
+                index: 0,
+            })
             .add_startup_system(add_person)
             .add_system(timer_fn)
             .add_system(release_cell.label("release_cell"))
+            // .add_system(timer_print)
+            .add_system_set(
+                SystemSet::new()
+                    .with_run_criteria(FixedTimestep::step(0.02))
+                    .with_system(timer_print),
+            )
             .add_system(release_cell_selected.after("release_cell"));
         // .add_system(cursor_pos)
         // .add_system(mouse_button_input);
